@@ -1,29 +1,81 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+// app/_layout.tsx
+import { Drawer } from "expo-router/drawer";
+import { CustomDrawerContent } from "../components/CustomDrawerContent";
+import "../global.css";
+import { AuthProvider, useAuth } from "@/backend/AuthContext";
+import { useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { Stack, useRouter } from "expo-router";
+import 'react-native-url-polyfill/auto';
+import {getUserData} from "@/backend/services/userService";
 
-import { useColorScheme } from '@/hooks/useColorScheme';
+const AuthInitializer = () => {
+  const { setAuth, setUserData } = useAuth();
+  const router = useRouter();
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
+  useEffect(() => {
+    const updateUserData = async (user) => {
+      let res = await getUserData(user?.id);
+      if (res.succes) setUserData(res.data);
+    };
 
-  if (!loaded) {
-    // Async font loading only occurs in development.
-    return null;
-  }
+    supabase.auth.onAuthStateChange((_event, session) => {
+      // console.log('session user layout', session?.user?.id);
 
+      if (session) {
+        setAuth(session?.user);
+        updateUserData(session?.user);
+        router.replace("/home");
+      } else {
+        setAuth(null);
+        router.replace("/");
+      }
+    });
+  }, []);
+  
+  return null; // <- je moet iets retourneren (bijv. null) want dit is een component
+};
+
+const RootLayout = () => {
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <>
+    <Drawer
+      drawerContent={(props) => <CustomDrawerContent {...props} />}
+      screenOptions={{
+        headerShown: false,
+        drawerActiveBackgroundColor: "#E5E7EB",
+        drawerActiveTintColor: "#111827",
+        drawerInactiveTintColor: "#6B7280",
+        drawerLabelStyle: {
+          fontSize: 16,
+          marginLeft: -5,
+        },
+        drawerItemStyle: {
+          borderBottomWidth: 1,
+          borderBottomColor: "#E5E7EB",
+        },
+        drawerStyle: {
+          backgroundColor: "#FFFFFF",
+        },
+      }}
+    >
+      <Drawer.Screen name="(auth)" options={{ title: "Auth" }} />
+      <Drawer.Screen name="(tabs)" options={{ title: "Home" }} />
+      <Drawer.Screen name="(modals)" options={{ title: "Modals" }} />
+    
+    </Drawer>
+      {/* <Stack.Screen name="/postDetails" options={{presentation: 'formSheet'}}/> */}
+    </>
+
+
+  );
+};
+
+export default function AppLayout() {
+  return (
+    <AuthProvider>
+      <AuthInitializer />
+      <RootLayout />
+    </AuthProvider>
   );
 }
